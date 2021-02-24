@@ -4,7 +4,7 @@ import "time"
 
 type Svc struct {
 	Name    string
-	Port    int
+	Port    string
 	XAPIKEY string
 
 	// Default eth0 addr

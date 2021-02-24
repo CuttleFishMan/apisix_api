@@ -64,7 +64,7 @@ func (s *Svc) registerService() error {
 		s.InetIp = inetip
 	}
 
-	inetip += ":" + fmt.Sprintf("%d", s.Port)
+	inetip += ":" + s.Port
 	fmt.Println(inetip, 123)
 
 	if s.Plugins == nil {
@@ -113,7 +113,7 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 		inetip = net.GetIntranetIp()[0]
 		s.InetIp = inetip
 	}
-	inetip += ":" + fmt.Sprintf("%d", s.Port)
+	inetip += ":" + s.Port
 
 	if s.Hosts == nil {
 		s.Hosts = []string{"127.0.0.1"}
