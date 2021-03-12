@@ -26,6 +26,7 @@ type Svc struct {
 
 	// Default ["PUT", "GET","POST","PATCH","DELETE","OPTIONS","HEAD","CONNECT","TRACE"],
 	Methods []string
+	HTTP2   bool
 
 	Plugins map[string]interface{}
 }

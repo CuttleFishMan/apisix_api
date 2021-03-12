@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/eavesmy/golang-lib/net"
@@ -55,6 +56,7 @@ func (s *Svc) registerService() error {
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
 
 	inetip := s.InetIp
@@ -65,21 +67,43 @@ func (s *Svc) registerService() error {
 	}
 
 	inetip += ":" + s.Port
-	fmt.Println(inetip, 123)
 
 	if s.Plugins == nil {
 		s.Plugins = map[string]interface{}{}
 	}
 
-	if resp.StatusCode == 404 {
+	fmt.Println(uri + s.Name)
+
+	if resp.StatusCode >= 0 {
+
+		upstream := Upstream{
+			Type:  "roundrobin",
+			Nodes: map[string]int{inetip: 1},
+			/*
+				Passive: &Passive{
+					Healthy: &Healthy{
+						HTTPStatuses: []int{200},
+						Successes:    3,
+					},
+					Unhealthy: &Unhealthy{
+						HTTPStatuses: []int{500, 501, 502},
+						HTTPFailures: 2,
+						TCPFailures:  3,
+					},
+				},
+			*/
+		}
+
+		if s.HTTP2 {
+			upstream.Scheme = "grpcs"
+		}
+
 		resp, err = s.Put(uri+s.Name, encode(&Service{
 			Plugins:          s.Plugins,
 			Enable_Websocket: s.EnableWebsocket,
-			Upstream: Upstream{
-				Type:  "roundrobin",
-				Nodes: map[string]int{inetip: 1},
-			},
-		}))
+			Upstream:         upstream},
+		))
+
 		defer resp.Body.Close()
 	} else {
 		resp, err = s.Patch(uri+s.Name, encode(&Service{
@@ -89,6 +113,10 @@ func (s *Svc) registerService() error {
 	}
 
 	fmt.Println("Registe service [", s.Name, "] status code:", resp.StatusCode)
+
+	a, _ := ioutil.ReadAll(resp.Body)
+
+	fmt.Println(string(a))
 
 	return nil
 }
@@ -151,5 +179,7 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 
 func encode(d interface{}) io.Reader {
 	b, _ := json.Marshal(d)
+
+	fmt.Println(string(b))
 	return bytes.NewBuffer(b)
 }
