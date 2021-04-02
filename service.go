@@ -72,26 +72,41 @@ func (s *Svc) registerService() error {
 		s.Plugins = map[string]interface{}{}
 	}
 
-	fmt.Println(uri + s.Name)
+	fmt.Println(uri+s.Name, resp.StatusCode)
 
-	if resp.StatusCode >= 0 {
+	if resp.StatusCode >= 404 {
 
 		upstream := Upstream{
 			Type:  "roundrobin",
-			Nodes: map[string]int{inetip: 1},
-			/*
+			Nodes: map[string]int{inetip: 1}, // 权重做自增变量
+			Checks: &Checks{
+				Active: &Active{
+					Timeout:  1,
+					HTTPPath: "/" + s.Name + "/healthCheck",
+					Host:     s.Hosts[0],
+					Healthy: &Healthy{
+						HTTPStatuses: []int{200},
+						Successes:    3,
+					},
+					Unhealthy: &Unhealthy{
+						HTTPStatuses: []int{502, 503, 504},
+						HTTPFailures: 2,
+						TCPFailures:  3,
+					},
+					ReqHeaders: []string{"User-Agent: curl/7.29.0"},
+				},
 				Passive: &Passive{
 					Healthy: &Healthy{
 						HTTPStatuses: []int{200},
 						Successes:    3,
 					},
 					Unhealthy: &Unhealthy{
-						HTTPStatuses: []int{500, 501, 502},
+						HTTPStatuses: []int{502, 503, 504},
 						HTTPFailures: 2,
 						TCPFailures:  3,
 					},
 				},
-			*/
+			},
 		}
 
 		if s.HTTP2 {
@@ -99,6 +114,7 @@ func (s *Svc) registerService() error {
 		}
 
 		resp, err = s.Put(uri+s.Name, encode(&Service{
+			Name:             s.Name,
 			Plugins:          s.Plugins,
 			Enable_Websocket: s.EnableWebsocket,
 			Upstream:         upstream},
@@ -107,7 +123,39 @@ func (s *Svc) registerService() error {
 		defer resp.Body.Close()
 	} else {
 		resp, err = s.Patch(uri+s.Name, encode(&Service{
-			Upstream: Upstream{Nodes: map[string]int{inetip: 1}, Type: "roundrobin"},
+			Name: s.Name,
+			Upstream: Upstream{
+				Nodes: map[string]int{inetip: 2},
+				Type:  "roundrobin",
+				Checks: &Checks{
+					Active: &Active{
+						Timeout:  1,
+						HTTPPath: "/" + s.Name + "/healthCheck",
+						Host:     s.Hosts[0],
+						Healthy: &Healthy{
+							HTTPStatuses: []int{200},
+							Successes:    3,
+						},
+						Unhealthy: &Unhealthy{
+							HTTPStatuses: []int{502, 503, 504},
+							HTTPFailures: 2,
+							TCPFailures:  3,
+						},
+						ReqHeaders: []string{"User-Agent: curl/7.29.0"},
+					},
+					Passive: &Passive{
+						Healthy: &Healthy{
+							HTTPStatuses: []int{200},
+							Successes:    3,
+						},
+						Unhealthy: &Unhealthy{
+							HTTPStatuses: []int{502, 503, 504},
+							HTTPFailures: 2,
+							TCPFailures:  3,
+						},
+					},
+				},
+			},
 		}))
 		defer resp.Body.Close()
 	}
@@ -132,6 +180,7 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 	resp, err := s.Get(uri)
 
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 
@@ -162,8 +211,15 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 			Methods:          s.Methods,
 			Enable_Websocket: false,
 			Service_Id:       s.Name + s.Version,
+			Name:             s.Name,
 		}))
+
+		if resp.Body != nil {
+			b, _ := ioutil.ReadAll(resp.Body)
+			fmt.Println(string(b))
+		}
 		if err != nil {
+			fmt.Println(err)
 			return err
 		}
 	}
