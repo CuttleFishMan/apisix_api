@@ -161,7 +161,7 @@ func (s *Svc) registerService() error {
 						},
 					},
 				},
-			},
+			}
 		}
 		resp, err = s.Patch(uri+s.Name, encode(&Service{
 			Name: s.Name,
