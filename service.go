@@ -74,8 +74,9 @@ func (s *Svc) registerService() error {
 
 	fmt.Println(uri+s.Name, resp.StatusCode, 12333)
 
-	// TODO: 直接覆盖
-	if resp.StatusCode >= 200 {
+	fmt.Println("support websocket?", s.EnableWebsocket)
+
+	if resp.StatusCode >= 404 {
 
 		upstream := Upstream{
 			Type:  "roundrobin",
@@ -112,6 +113,8 @@ func (s *Svc) registerService() error {
 
 		if s.HTTP2 {
 			upstream.Scheme = "grpc"
+		} else {
+			upstream.Scheme = "http"
 		}
 
 		resp, err = s.Put(uri+s.Name, encode(&Service{
@@ -124,48 +127,51 @@ func (s *Svc) registerService() error {
 		defer resp.Body.Close()
 	} else {
 
+		upstream := Upstream{
+			Nodes: map[string]int{inetip: 2},
+			Type:  "roundrobin",
+			Checks: &Checks{
+				Active: &Active{
+					Timeout:  1,
+					HTTPPath: "/" + s.Name + "/healthCheck",
+					Host:     s.Hosts[0],
+					Healthy: &Healthy{
+						HTTPStatuses: []int{200},
+						Successes:    3,
+					},
+					Unhealthy: &Unhealthy{
+						HTTPStatuses: []int{502, 503, 504},
+						HTTPFailures: 2,
+						TCPFailures:  3,
+					},
+					ReqHeaders: []string{"User-Agent: curl/7.29.0"},
+				},
+				Passive: &Passive{
+					Healthy: &Healthy{
+						HTTPStatuses: []int{200},
+						Successes:    3,
+					},
+					Unhealthy: &Unhealthy{
+						HTTPStatuses: []int{502, 503, 504},
+						HTTPFailures: 2,
+						TCPFailures:  3,
+					},
+				},
+			},
+		}
 		if s.HTTP2 {
 			upstream.Scheme = "grpc"
 		} else {
-      upstream.Scheme = "http"
-    }
-
-    upstream := Upstream{
-				Nodes: map[string]int{inetip: 2},
-				Type:  "roundrobin",
-				Checks: &Checks{
-					Active: &Active{
-						Timeout:  1,
-						HTTPPath: "/" + s.Name + "/healthCheck",
-						Host:     s.Hosts[0],
-						Healthy: &Healthy{
-							HTTPStatuses: []int{200},
-							Successes:    3,
-						},
-						Unhealthy: &Unhealthy{
-							HTTPStatuses: []int{502, 503, 504},
-							HTTPFailures: 2,
-							TCPFailures:  3,
-						},
-						ReqHeaders: []string{"User-Agent: curl/7.29.0"},
-					},
-					Passive: &Passive{
-						Healthy: &Healthy{
-							HTTPStatuses: []int{200},
-							Successes:    3,
-						},
-						Unhealthy: &Unhealthy{
-							HTTPStatuses: []int{502, 503, 504},
-							HTTPFailures: 2,
-							TCPFailures:  3,
-						},
-					},
-				},
-			}
+			upstream.Scheme = "http"
 		}
-		resp, err = s.Patch(uri+s.Name, encode(&Service{
-			Name: s.Name,
-			Upstream: upstream))
+
+		resp, err = s.Put(uri+s.Name, encode(&Service{
+			Name:             s.Name,
+			Plugins:          s.Plugins,
+			Enable_Websocket: s.EnableWebsocket,
+			Upstream:         upstream},
+		))
+
 		defer resp.Body.Close()
 	}
 
@@ -212,7 +218,7 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 		s.Methods = []string{"PUT", "GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD", "CONNECT", "TRACE"}
 	}
 
-	if resp.StatusCode == >=200 {
+	if resp.StatusCode >= 200 {
 		resp, err = s.Put(uri, encode(&Router{
 			Uri:              router,
 			Hosts:            s.Hosts,
