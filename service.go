@@ -209,7 +209,7 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 			Hosts:            s.Hosts,
 			Remote_Addrs:     s.Remote_Addrs,
 			Methods:          s.Methods,
-			Enable_Websocket: false,
+			Enable_Websocket: s.EnableWebsocket,
 			Service_Id:       s.Name + s.Version,
 			Name:             s.Name,
 		}))
