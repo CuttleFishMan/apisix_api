@@ -72,9 +72,10 @@ func (s *Svc) registerService() error {
 		s.Plugins = map[string]interface{}{}
 	}
 
-	fmt.Println(uri+s.Name, resp.StatusCode)
+	fmt.Println(uri+s.Name, resp.StatusCode, 12333)
 
-	if resp.StatusCode >= 404 {
+	// TODO: 直接覆盖
+	if resp.StatusCode >= 200 {
 
 		upstream := Upstream{
 			Type:  "roundrobin",
@@ -110,7 +111,7 @@ func (s *Svc) registerService() error {
 		}
 
 		if s.HTTP2 {
-			upstream.Scheme = "grpcs"
+			upstream.Scheme = "grpc"
 		}
 
 		resp, err = s.Put(uri+s.Name, encode(&Service{
@@ -122,9 +123,14 @@ func (s *Svc) registerService() error {
 
 		defer resp.Body.Close()
 	} else {
-		resp, err = s.Patch(uri+s.Name, encode(&Service{
-			Name: s.Name,
-			Upstream: Upstream{
+
+		if s.HTTP2 {
+			upstream.Scheme = "grpc"
+		} else {
+      upstream.Scheme = "http"
+    }
+
+    upstream := Upstream{
 				Nodes: map[string]int{inetip: 2},
 				Type:  "roundrobin",
 				Checks: &Checks{
@@ -156,7 +162,10 @@ func (s *Svc) registerService() error {
 					},
 				},
 			},
-		}))
+		}
+		resp, err = s.Patch(uri+s.Name, encode(&Service{
+			Name: s.Name,
+			Upstream: upstream))
 		defer resp.Body.Close()
 	}
 
@@ -203,20 +212,20 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 		s.Methods = []string{"PUT", "GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD", "CONNECT", "TRACE"}
 	}
 
-	if resp.StatusCode == 404 {
+	if resp.StatusCode == >=200 {
 		resp, err = s.Put(uri, encode(&Router{
 			Uri:              router,
 			Hosts:            s.Hosts,
 			Remote_Addrs:     s.Remote_Addrs,
 			Methods:          s.Methods,
-			Enable_Websocket: false,
+			Enable_Websocket: s.EnableWebsocket,
 			Service_Id:       s.Name + s.Version,
 			Name:             s.Name,
 		}))
 
 		if resp.Body != nil {
 			b, _ := ioutil.ReadAll(resp.Body)
-			fmt.Println(string(b))
+			fmt.Println(string(b), 12333)
 		}
 		if err != nil {
 			fmt.Println(err)
@@ -236,6 +245,5 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 func encode(d interface{}) io.Reader {
 	b, _ := json.Marshal(d)
 
-	fmt.Println(string(b))
 	return bytes.NewBuffer(b)
 }
