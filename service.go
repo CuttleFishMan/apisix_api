@@ -74,6 +74,8 @@ func (s *Svc) registerService() error {
 
 	fmt.Println(uri+s.Name, resp.StatusCode)
 
+	fmt.Println("support websocket?", s.EnableWebsocket)
+
 	if resp.StatusCode >= 404 {
 
 		upstream := Upstream{
