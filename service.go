@@ -165,11 +165,8 @@ func (s *Svc) registerService() error {
 			upstream.Scheme = "http"
 		}
 
-		resp, err = s.Put(uri+s.Name, encode(&Service{
-			Name:             s.Name,
-			Plugins:          s.Plugins,
-			Enable_Websocket: s.EnableWebsocket,
-			Upstream:         upstream},
+		resp, err = s.Patch(uri+s.Name, encode(&Service{
+			Upstream: upstream},
 		))
 
 		defer resp.Body.Close()
@@ -225,8 +222,9 @@ func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
 			Remote_Addrs:     s.Remote_Addrs,
 			Methods:          s.Methods,
 			Enable_Websocket: s.EnableWebsocket,
-			Service_Id:       s.Name + s.Version,
+			Service_Id:       s.Name,
 			Name:             s.Name,
+			// Version:          s.Version,
 		}))
 
 		if resp.Body != nil {
