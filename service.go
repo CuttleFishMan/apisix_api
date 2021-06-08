@@ -165,9 +165,11 @@ func (s *Svc) registerService() error {
 			upstream.Scheme = "http"
 		}
 
-		resp, err = s.Patch(uri+s.Name, encode(&Service{
-			Name:     s.Name,
-			Upstream: upstream},
+		resp, err = s.Put(uri+s.Name, encode(&Service{
+			Name:             s.Name,
+			Plugins:          s.Plugins,
+			Enable_Websocket: s.EnableWebsocket,
+			Upstream:         upstream},
 		))
 
 		defer resp.Body.Close()
