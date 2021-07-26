@@ -23,6 +23,7 @@ type Upstream struct {
 	Checks     *Checks        `json:"checks,omitempty"`
 	Scheme     string         `json:"scheme,omitempty"`
 	Name       string         `json:"name,omitempty"`
+	Retries    int            `json:"retries,omitempty"`
 	RetryTimes int            `json:"retry_timeout,omitempty"`
 }
 

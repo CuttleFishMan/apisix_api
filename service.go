@@ -111,7 +111,8 @@ func (s *Svc) registerUpstream() (err error) {
 		Name:       s.Name + s.Version,
 		Type:       "roundrobin",
 		Nodes:      map[string]int{inetip: 1}, // 权重做自增变量
-		RetryTimes: 2,
+		RetryTimes: 1,
+		Retries:    2,
 		Checks: &Checks{
 			Active: &Active{
 				Timeout:  1,
