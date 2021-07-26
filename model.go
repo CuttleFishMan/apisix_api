@@ -18,11 +18,12 @@ type Service struct {
 }
 
 type Upstream struct {
-	Type   string         `json:"type,omitempty"`
-	Nodes  map[string]int `json:"nodes,omitempty"`
-	Checks *Checks        `json:"checks,omitempty"`
-	Scheme string         `json:"scheme,omitempty"`
-	Name   string         `json:"name,omitempty"`
+	Type       string         `json:"type,omitempty"`
+	Nodes      map[string]int `json:"nodes,omitempty"`
+	Checks     *Checks        `json:"checks,omitempty"`
+	Scheme     string         `json:"scheme,omitempty"`
+	Name       string         `json:"name,omitempty"`
+	RetryTimes int            `json:"retry_timeout,omitempty"`
 }
 
 type Checks struct {
@@ -34,6 +35,7 @@ type Passive struct {
 	Healthy   *Healthy   `json:"healthy"`
 	Unhealthy *Unhealthy `json:"unhealthy"`
 }
+
 type Active struct {
 	Timeout    int    `json:"timeout"`
 	HTTPPath   string `json:"http_path"`
