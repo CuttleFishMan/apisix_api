@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"time"
 
 	"github.com/eavesmy/golang-lib/net"
+)
+
+const (
+	UPSTREAM_URI = "/admin/upstreams"
+	SERVICE_URI  = "/admin/services"
+	ROUTER_URI   = "/admin/routes"
 )
 
 /*
@@ -49,6 +54,90 @@ $ curl http://127.0.0.1:9080/apisix/admin/services/201  -H 'X-API-KEY: edd1c9f03
 }'
 */
 
+func (s *Svc) inet() string {
+
+	inetip := s.InetIp
+
+	if inetip == "" {
+		inetip = net.GetIntranetIp()[0]
+		s.InetIp = inetip
+	}
+
+	inetip += ":" + s.Port
+
+	return inetip
+}
+
+func (s *Svc) upstreamExists() (err error) {
+
+	resp, err := s.Get(UPSTREAM_URI)
+
+	defer resp.Body.Close()
+
+	fmt.Println(resp.StatusCode, resp.Status)
+
+	return
+}
+
+func (s *Svc) registerUpstream() (err error) {
+
+	s.upstreamExists()
+
+	return
+
+	inetip := s.inet()
+
+	upstream := Upstream{
+		Type:  "roundrobin",
+		Nodes: map[string]int{inetip: 1}, // 权重做自增变量
+		Checks: &Checks{
+			Active: &Active{
+				Timeout:  1,
+				HTTPPath: "/" + s.Name + "/healthCheck",
+				Host:     s.Hosts[0],
+				Healthy: &Healthy{
+					HTTPStatuses: []int{200},
+					Successes:    3,
+				},
+				Unhealthy: &Unhealthy{
+					HTTPStatuses: []int{502, 503, 504},
+					HTTPFailures: 2,
+					TCPFailures:  3,
+				},
+				ReqHeaders: []string{"User-Agent: curl/7.29.0"},
+			},
+			Passive: &Passive{
+				Healthy: &Healthy{
+					HTTPStatuses: []int{200},
+					Successes:    3,
+				},
+				Unhealthy: &Unhealthy{
+					HTTPStatuses: []int{502, 503, 504},
+					HTTPFailures: 2,
+					TCPFailures:  3,
+				},
+			},
+		},
+	}
+
+	if s.HTTP2 {
+		upstream.Scheme = "grpc"
+	} else {
+		upstream.Scheme = "http"
+	}
+
+	resp, err := s.Patch(UPSTREAM_URI, encode(upstream))
+	if err != nil {
+		return
+	}
+
+	defer resp.Body.Close()
+
+	fmt.Println(resp)
+
+	return
+}
+
 func (s *Svc) registerService() error {
 
 	uri := "/apisix/admin/services/"
@@ -59,14 +148,7 @@ func (s *Svc) registerService() error {
 
 	defer resp.Body.Close()
 
-	inetip := s.InetIp
-
-	if inetip == "" {
-		inetip = net.GetIntranetIp()[0]
-		s.InetIp = inetip
-	}
-
-	inetip += ":" + s.Port
+	fmt.Println(resp.StatusCode, resp.Status)
 
 	if s.Plugins == nil {
 		s.Plugins = map[string]interface{}{}
@@ -78,58 +160,17 @@ func (s *Svc) registerService() error {
 
 	if resp.StatusCode >= 404 {
 
-		upstream := Upstream{
-			Type:  "roundrobin",
-			Nodes: map[string]int{inetip: 1}, // 权重做自增变量
-			Checks: &Checks{
-				Active: &Active{
-					Timeout:  1,
-					HTTPPath: "/" + s.Name + "/healthCheck",
-					Host:     s.Hosts[0],
-					Healthy: &Healthy{
-						HTTPStatuses: []int{200},
-						Successes:    3,
-					},
-					Unhealthy: &Unhealthy{
-						HTTPStatuses: []int{502, 503, 504},
-						HTTPFailures: 2,
-						TCPFailures:  3,
-					},
-					ReqHeaders: []string{"User-Agent: curl/7.29.0"},
-				},
-				Passive: &Passive{
-					Healthy: &Healthy{
-						HTTPStatuses: []int{200},
-						Successes:    3,
-					},
-					Unhealthy: &Unhealthy{
-						HTTPStatuses: []int{502, 503, 504},
-						HTTPFailures: 2,
-						TCPFailures:  3,
-					},
-				},
-			},
-		}
-
-		if s.HTTP2 {
-			upstream.Scheme = "grpc"
-		} else {
-			upstream.Scheme = "http"
-		}
-
 		resp, err = s.Put(uri+s.Name, encode(&Service{
 			Name:             s.Name,
 			Plugins:          s.Plugins,
 			Enable_Websocket: s.EnableWebsocket,
-			Upstream:         upstream},
-		))
+		}))
 
 		defer resp.Body.Close()
 	} else {
 
 		upstream := Upstream{
-			Nodes: map[string]int{inetip: 2},
-			Type:  "roundrobin",
+			Type: "roundrobin",
 			Checks: &Checks{
 				Active: &Active{
 					Timeout:  1,
@@ -184,13 +225,9 @@ func (s *Svc) registerService() error {
 	return nil
 }
 
-func (s *Svc) registerRouter(router string, ttls ...time.Duration) error {
+func (s *Svc) registerRouter(router string) error {
 
 	uri := "/apisix/admin/routes/" + s.Name
-
-	if len(ttls) < 0 {
-		uri += "?ttl=" + fmt.Sprintf("%d", int(ttls[0].Seconds()))
-	}
 
 	resp, err := s.Get(uri)
 

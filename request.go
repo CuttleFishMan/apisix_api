@@ -6,15 +6,33 @@ import (
 )
 
 func (s *Svc) Get(uri string) (resp *http.Response, err error) {
-	return s.request(http.MethodGet, uri, nil)
+	return s.request(http.MethodGet, s.handlePrefix(uri), nil)
 }
 
 func (s *Svc) Put(uri string, body io.Reader) (resp *http.Response, err error) {
-	return s.request(http.MethodPut, uri, body)
+	return s.request(http.MethodPut, s.handlePrefix(uri), body)
 }
 
 func (s *Svc) Patch(uri string, body io.Reader) (resp *http.Response, err error) {
-	return s.request(http.MethodPatch, uri, body)
+	return s.request(http.MethodPatch, s.handlePrefix(uri), body)
+}
+
+func (s *Svc) handlePrefix(uri string) string {
+
+	if s.Prefix == "" || s.Prefix == "/" {
+		return s.handleVersion(uri)
+	}
+
+	return s.handleVersion(s.Prefix + uri)
+}
+
+func (s *Svc) handleVersion(uri string) string {
+
+	if s.Version != "" {
+		return uri + "/" + s.Version
+	}
+
+	return uri
 }
 
 func (s *Svc) request(method, uri string, body io.Reader) (resp *http.Response, err error) {

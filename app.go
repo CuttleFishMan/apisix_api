@@ -1,6 +1,8 @@
 package apisix
 
-import "time"
+import (
+	"time"
+)
 
 type Svc struct {
 	Name    string
@@ -18,6 +20,9 @@ type Svc struct {
 	// Default ["127.0.0.1"]
 	Hosts []string
 
+	// @description etcd endpoints
+	Endpoints []string
+
 	// Default ["0.0.0.0/0"]
 	Remote_Addrs []string
 
@@ -29,13 +34,24 @@ type Svc struct {
 	HTTP2   bool
 
 	Plugins map[string]interface{}
+
+	// @required
+	// @description Default /apisix
+	Prefix string
+
+	// @default 5s
+	UpstreamTimeout int
 }
 
 func (s *Svc) RegisterService() error {
-	return s.registerService()
+
+	s.registerUpstream()
+	return nil
+	// return s.registerService()
 }
 
 // query routes and update nodes
 func (s *Svc) RegisterRouter(router string, ttls ...time.Duration) error {
-	return s.registerRouter(router, ttls...)
+	return nil
+	// return s.registerRouter(router)
 }
