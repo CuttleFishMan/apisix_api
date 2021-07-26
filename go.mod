@@ -1,4 +1,4 @@
-module github.com/eavesmy/apisix
+module github.com/eavesmy/apisix_api
 
 go 1.15
 
