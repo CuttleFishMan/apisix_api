@@ -44,14 +44,10 @@ type Svc struct {
 }
 
 func (s *Svc) RegisterService() error {
-
-	s.registerUpstream()
-	return nil
-	// return s.registerService()
+	return s.registerUpstream()
 }
 
 // query routes and update nodes
 func (s *Svc) RegisterRouter(router string, ttls ...time.Duration) error {
-	return nil
-	// return s.registerRouter(router)
+	return s.registerRouter(router)
 }

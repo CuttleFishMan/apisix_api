@@ -1,6 +1,7 @@
 package apisix
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -20,19 +21,11 @@ func (s *Svc) Patch(uri string, body io.Reader) (resp *http.Response, err error)
 func (s *Svc) handlePrefix(uri string) string {
 
 	if s.Prefix == "" || s.Prefix == "/" {
-		return s.handleVersion(uri)
+		// [uri]/upstream+1.3
+		return uri + "/" + s.Name + s.Version
 	}
 
-	return s.handleVersion(s.Prefix + uri)
-}
-
-func (s *Svc) handleVersion(uri string) string {
-
-	if s.Version != "" {
-		return uri + "/" + s.Version
-	}
-
-	return uri
+	return s.Prefix + uri + "/" + s.Name + s.Version
 }
 
 func (s *Svc) request(method, uri string, body io.Reader) (resp *http.Response, err error) {
@@ -42,7 +35,12 @@ func (s *Svc) request(method, uri string, body io.Reader) (resp *http.Response, 
 		apisixHost = "127.0.0.1:9180"
 	}
 
-	req, err := http.NewRequest(method, "http://"+apisixHost+uri+s.Version, body)
+	uri = "http://" + apisixHost + uri
+	fmt.Println("request apisix:", method, uri)
+
+	fmt.Println(body)
+
+	req, err := http.NewRequest(method, uri, body)
 
 	if err != nil {
 		return

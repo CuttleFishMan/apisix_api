@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/eavesmy/golang-lib/net"
 )
@@ -68,26 +69,46 @@ func (s *Svc) inet() string {
 	return inetip
 }
 
-func (s *Svc) upstreamExists() (err error) {
+func (s *Svc) routerExists() bool {
 
-	resp, err := s.Get(UPSTREAM_URI)
+	resp, err := s.Get(ROUTER_URI)
+
+	if err != nil {
+		return false
+	}
 
 	defer resp.Body.Close()
 
-	fmt.Println(resp.StatusCode, resp.Status)
+	return resp.StatusCode != 404
+}
 
-	return
+func (s *Svc) upstreamExists() bool {
+
+	resp, err := s.Get(UPSTREAM_URI)
+
+	if err != nil {
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	return resp.StatusCode != 404
 }
 
 func (s *Svc) registerUpstream() (err error) {
 
-	s.upstreamExists()
+	var handler func(string, io.Reader) (*http.Response, error)
 
-	return
+	if s.upstreamExists() { // update
+		handler = s.Patch
+	} else { // insert
+		handler = s.Put
+	}
 
 	inetip := s.inet()
 
 	upstream := Upstream{
+		Name:  s.Name + s.Version,
 		Type:  "roundrobin",
 		Nodes: map[string]int{inetip: 1}, // 权重做自增变量
 		Checks: &Checks{
@@ -96,13 +117,15 @@ func (s *Svc) registerUpstream() (err error) {
 				HTTPPath: "/" + s.Name + "/healthCheck",
 				Host:     s.Hosts[0],
 				Healthy: &Healthy{
+					Interval:     3,
 					HTTPStatuses: []int{200},
-					Successes:    3,
+					Successes:    2,
 				},
 				Unhealthy: &Unhealthy{
 					HTTPStatuses: []int{502, 503, 504},
 					HTTPFailures: 2,
 					TCPFailures:  3,
+					Interval:     3,
 				},
 				ReqHeaders: []string{"User-Agent: curl/7.29.0"},
 			},
@@ -126,7 +149,7 @@ func (s *Svc) registerUpstream() (err error) {
 		upstream.Scheme = "http"
 	}
 
-	resp, err := s.Patch(UPSTREAM_URI, encode(upstream))
+	resp, err := handler(UPSTREAM_URI, encode(upstream))
 	if err != nil {
 		return
 	}
@@ -135,114 +158,58 @@ func (s *Svc) registerUpstream() (err error) {
 
 	fmt.Println(resp)
 
+	b, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(b))
+
 	return
 }
 
-func (s *Svc) registerService() error {
+func (s *Svc) registerService() (err error) {
 
-	uri := "/apisix/admin/services/"
-	resp, err := s.Get(uri + s.Name)
-	if err != nil {
-		return err
+	var handler func(string, io.Reader) (*http.Response, error)
+
+	if s.routerExists() { // update
+		handler = s.Patch
+	} else { // insert
+		handler = s.Put
 	}
-
-	defer resp.Body.Close()
-
-	fmt.Println(resp.StatusCode, resp.Status)
 
 	if s.Plugins == nil {
 		s.Plugins = map[string]interface{}{}
 	}
 
-	fmt.Println(uri+s.Name, resp.StatusCode, 12333)
-
-	fmt.Println("support websocket?", s.EnableWebsocket)
-
-	if resp.StatusCode >= 404 {
-
-		resp, err = s.Put(uri+s.Name, encode(&Service{
-			Name:             s.Name,
-			Plugins:          s.Plugins,
-			Enable_Websocket: s.EnableWebsocket,
-		}))
-
-		defer resp.Body.Close()
-	} else {
-
-		upstream := Upstream{
-			Type: "roundrobin",
-			Checks: &Checks{
-				Active: &Active{
-					Timeout:  1,
-					HTTPPath: "/" + s.Name + "/healthCheck",
-					Host:     s.Hosts[0],
-					Healthy: &Healthy{
-						HTTPStatuses: []int{200},
-						Successes:    3,
-					},
-					Unhealthy: &Unhealthy{
-						HTTPStatuses: []int{502, 503, 504},
-						HTTPFailures: 2,
-						TCPFailures:  3,
-					},
-					ReqHeaders: []string{"User-Agent: curl/7.29.0"},
-				},
-				Passive: &Passive{
-					Healthy: &Healthy{
-						HTTPStatuses: []int{200},
-						Successes:    3,
-					},
-					Unhealthy: &Unhealthy{
-						HTTPStatuses: []int{502, 503, 504},
-						HTTPFailures: 2,
-						TCPFailures:  3,
-					},
-				},
-			},
-		}
-		if s.HTTP2 {
-			upstream.Scheme = "grpc"
-		} else {
-			upstream.Scheme = "http"
-		}
-
-		resp, err = s.Put(uri+s.Name, encode(&Service{
-			Name:             s.Name,
-			Plugins:          s.Plugins,
-			Enable_Websocket: s.EnableWebsocket,
-			Upstream:         upstream},
-		))
-
-		defer resp.Body.Close()
+	service := &Service{
+		Name:             s.Name + "+" + s.Version,
+		Plugins:          s.Plugins,
+		Enable_Websocket: s.EnableWebsocket,
+		UpstreamId:       s.Name + "+" + s.Version,
 	}
 
-	fmt.Println("Registe service [", s.Name, "] status code:", resp.StatusCode)
-
-	a, _ := ioutil.ReadAll(resp.Body)
-
-	fmt.Println(string(a))
-
-	return nil
-}
-
-func (s *Svc) registerRouter(router string) error {
-
-	uri := "/apisix/admin/routes/" + s.Name
-
-	resp, err := s.Get(uri)
+	resp, err := handler(SERVICE_URI, encode(service))
 
 	if err != nil {
-		fmt.Println(err)
-		return err
+		return
 	}
 
 	defer resp.Body.Close()
-	inetip := s.InetIp
-	if inetip == "" {
-		inetip = net.GetIntranetIp()[0]
-		s.InetIp = inetip
-	}
-	inetip += ":" + s.Port
+
+	fmt.Println("Registe service [", s.Name, "] status code:", resp.StatusCode)
+
+	fmt.Println(resp)
+
+	return
+}
+
+func (s *Svc) registerRouter(routes string) (err error) {
+
+	var handler func(string, io.Reader) (*http.Response, error)
+
+	// 无论路由是否存在，都按照 put 执行
+	// if s.routerExists() { // update
+	// handler = s.Patch
+	// } else { // insert
+	handler = s.Put
+	// }
 
 	if s.Hosts == nil {
 		s.Hosts = []string{"127.0.0.1"}
@@ -251,43 +218,58 @@ func (s *Svc) registerRouter(router string) error {
 	if s.Remote_Addrs == nil {
 		s.Remote_Addrs = []string{"0.0.0.0/0"}
 	}
+
 	if s.Methods == nil {
 		s.Methods = []string{"PUT", "GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD", "CONNECT", "TRACE"}
 	}
 
-	if resp.StatusCode >= 200 {
-		resp, err = s.Put(uri, encode(&Router{
-			Uri:              router,
-			Hosts:            s.Hosts,
-			Remote_Addrs:     s.Remote_Addrs,
-			Methods:          s.Methods,
-			Enable_Websocket: s.EnableWebsocket,
-			Service_Id:       s.Name,
-			Name:             s.Name,
-			// Version:          s.Version,
-		}))
+	if s.Plugins == nil {
+		s.Plugins = map[string]interface{}{}
+	}
 
-		if resp.Body != nil {
-			b, _ := ioutil.ReadAll(resp.Body)
-			fmt.Println(string(b), 12333)
-		}
-		if err != nil {
-			fmt.Println(err)
-			return err
-		}
+	router := &Router{
+		Uri:              routes,
+		Hosts:            s.Hosts,
+		Remote_Addrs:     s.Remote_Addrs,
+		Methods:          s.Methods,
+		Enable_Websocket: s.EnableWebsocket,
+		UpstreamId:       s.Name + s.Version,
+		// Service_Id:       s.Name,
+		// 直接绑定 upstreamid
+		Name: s.Name,
+		// Version:          s.Version,
+	}
+
+	fmt.Println("go handler", ROUTER_URI)
+
+	resp, err := handler(ROUTER_URI, encode(router))
+
+	if err != nil {
+		return err
 	}
 
 	defer resp.Body.Close()
 
 	fmt.Println("Registe router [", router, "] status code:", resp.StatusCode)
-	// b, _ := ioutil.ReadAll(resp.Body)
-	// fmt.Println(string(b))
 
-	return nil
+	fmt.Println(resp)
+
+	b, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(b))
+
+	return
 }
 
 func encode(d interface{}) io.Reader {
 	b, _ := json.Marshal(d)
 
 	return bytes.NewBuffer(b)
+}
+
+func decode(resp io.Reader, d interface{}) (err error) {
+	b, err := ioutil.ReadAll(resp)
+	if err != nil {
+		return
+	}
+	return json.Unmarshal(b, &d)
 }

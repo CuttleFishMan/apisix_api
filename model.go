@@ -6,23 +6,23 @@ type Router struct {
 	Remote_Addrs     []string `json:"remote_addrs"`
 	Methods          []string `json:"methods"`
 	Enable_Websocket bool     `json:"enable_websocket"`
-	Service_Id       string   `json:"service_id,omitempty"`
+	UpstreamId       string   `json:"upstream_id,omitempty"`
 	Name             string   `json:"name"`
 }
 
 type Service struct {
 	Plugins          interface{} `json:"plugins"`
 	Enable_Websocket bool        `json:"enable_websocket"`
-	Upstream         Upstream    `json:"upstream"`
 	Name             string      `json:"name"`
+	UpstreamId       string      `json:"upstream_id"`
 }
 
 type Upstream struct {
-	Type        string         `json:"type,omitempty"`
-	Nodes       map[string]int `json:"nodes,omitempty"`
-	ServiceName string         `json:"service_name,omitempty"`
-	Checks      *Checks        `json:"checks,omitempty"`
-	Scheme      string         `json:"scheme,omitempty"`
+	Type   string         `json:"type,omitempty"`
+	Nodes  map[string]int `json:"nodes,omitempty"`
+	Checks *Checks        `json:"checks,omitempty"`
+	Scheme string         `json:"scheme,omitempty"`
+	Name   string         `json:"name,omitempty"`
 }
 
 type Checks struct {
@@ -46,9 +46,11 @@ type Active struct {
 type Healthy struct {
 	HTTPStatuses []int `json:"http_statuses"`
 	Successes    int   `json:"successes"`
+	Interval     int   `json:"interval"`
 }
 
 type Unhealthy struct {
+	Interval     int   `json:"interval"`
 	HTTPStatuses []int `json:"http_statuses"`
 	HTTPFailures int   `json:"http_failures"`
 	TCPFailures  int   `json:"tcp_failures"`
