@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	UPSTREAM_URI = "/admin/upstreams"
-	SERVICE_URI  = "/admin/services"
-	ROUTER_URI   = "/admin/routes"
+	UPSTREAM_URI = "/apisix/admin/upstreams"
+	SERVICE_URI  = "/apisix//admin/services"
+	ROUTER_URI   = "/apisix/admin/routes"
 )
 
 /*
